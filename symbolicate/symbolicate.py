@@ -255,7 +255,7 @@ def _parse_content(lines):
         if header_part_complete is False:
             crash_obj, header_part_complete = _parse_crash_info(line, crash_obj)
         elif stack_info_complete is False:
-            crash_obj, re_obj, stack_info_complete = _parse_stack_info(line, re_obj, crash_obj)
+            crash_obj, re_obj, stack_info_complete = _parse_stack_info(line, re_obj, crash_obj, crash_list.index(line))
         elif image_info_complete is False:
             crash_obj, re_obj, image_info_complete = _parse_image_info(line, re_obj, crash_obj)
         else:
@@ -305,8 +305,10 @@ def _parse_stack_info(line, re_obj, crash_obj, line_num):
     :param crash_obj: CrashInfo object
     :return: crash_obj, re_obj, complete:Bool
     """
+    if re_obj is None:
+        re_obj = re.compile(_match_stack_item_re())
     complete = False
-    match_obj = re.match(_match_stack_item_re(), line)
+    match_obj = re_obj.match(line)
     if match_obj is not None:
         stack_item =  _StackItemInfo()
         stack_item.name = match_obj.group(1)
@@ -316,6 +318,7 @@ def _parse_stack_info(line, re_obj, crash_obj, line_num):
         crash_obj.function_stacks.append(stack_item)
     elif re.match(_match_image_header_re(), line) is not None:
         complete = True
+        re_obj = None
     return (crash_obj, re_obj, complete)
 
 def _parse_image_info(line, re_obj, crash_obj):
@@ -325,8 +328,26 @@ def _parse_image_info(line, re_obj, crash_obj):
     :param crash_obj: CrashInfo object
     :return: crash_obj, re_obj, complete:Bool
     """
+    if re_obj is None:
+        re_obj = re.compile(_match_image_item_re())
     complete = False
-    match_obj = re.match(_match_image_item_re(), line)
+    match_obj = re_obj.match(line)
     if match_obj is not None:
         image_item = _ImageItemInfo()
-        image_item.name = match_obj.
+        image_item.load_address = match_obj.group(1)
+        image_item.name = match_obj.group(2)
+        image_item.code_type = match_obj.group(3)
+        image_item.uuid = match_obj.group(4)
+        image_item.symbol_file = match_obj.group(5)
+        crash_obj[image_item.load_address] = image_item
+    elif len(crash_obj.binary_images.items) > 0:
+        complete = True
+        re_obj = None
+    return (crash_obj, re_obj, complete)
+
+def symbolicate_stack_items(crash_obj):
+    """
+    :param crash_obj: CrashInfo object
+    :return: crash_obj
+    """
+    pass
