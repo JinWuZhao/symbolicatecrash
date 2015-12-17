@@ -3,9 +3,9 @@ import logging
 
 __author__ = 'jinzhao'
 
-#_loglevel_ = logging.INFO
+_loglevel_ = logging.INFO
 #_stream_ = sys.stdout
-_loglevel_ = logging.DEBUG
+#_loglevel_ = logging.DEBUG
 _stream_ = sys.stderr
 
 logging.basicConfig(level=_loglevel_,
