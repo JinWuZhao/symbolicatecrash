@@ -4,90 +4,105 @@ from subprocess import getstatusoutput
 
 __author__ = 'jinzhao'
 
-
-def set_app_dsym_finder(finder_func):
-    """
-    设置查询app可执行程序的符号文件的方法
-    :param finder_func:处理函数，定义为:(name:String, identifier:String, version:String, codetype:String) -> (path)
-    :return
-    """
-    pass
-
-def symbolicate_crash(crash_log):
+def symbolicate_crash(crash_log, finder_func, output_path=None):
     """
     符号化crash日志
     :param crash_log:crash日志文件路径
-    :return
+    :param finder_func:查询app符号文件的处理函数，定义为:(name:string, identifier:string, version:string, codetype:string) -> (path)
+    :param output_path:符号化之后的crash文件路径，默认为none，表示直接输出到stdin
+    :return 是否成功
     """
-    pass
-
+    status, lines = _read_log(crash_log)
+    if status is false:
+        loge('cannot open log file "{log_file}"'.format(log_file=crash_log))
+        return False
+    crash_list = _parse_content(lines, finder_func)
+    newlines = _compose_log(crash_list, lines)
+    if output_path is None:
+        print(newlines)
+    else:
+        if _write_log(output_path, newlines) is False:
+            loge('cannot write into file "{log_file}"'.format(log_file=output_path))
+            return False
+    return True
 
 def _match_crash_header_re():
     """
     匹配Incident Identifier: xxxxxx-xxxx-xxxx-xxxx-xxxxxx等文字
     """
-    return '^Incident\sIdentifier:\s*[A-F0-9\-]+\s*$'
+    return r'^Incident\sIdentifier:\s*[A-F0-9\-]+\s*$'
 
 def _match_product_name_re():
     """
     匹配Process: xxx [xxx]等文字
     """
-    return '^Process:\s*([\S.]+)\s\[\d+\]\s*$'
+    return r'^Process:\s*([\S.]+)\s\[\d+\]\s*$'
 
 def _match_identifier_re():
     """
     匹配Identifier: xxx.xxx.xxx等文字
     """
-    return '^Identifier:\s*([a-z0-9_\-\.]+)\s*$'
+    return r'^Identifier:\s*([a-z0-9_\-\.]+)\s*$'
 
 def _match_version_re():
     """
     匹配应用版本号
     """
-    return '^Version:\s*([\d\.]+)\s*$'
+    return r'^Version:\s*([\d\.]+)\s*$'
 
 def _match_code_type_re():
     """
     匹配codetype
     """
-    return '^Code\sType:\s*([a-zA-Z0-9\-]+)\s*$'
+    return r'^Code\sType:\s*([a-zA-Z0-9\-]+)\s*$'
 
 def _match_os_version_re():
     """
     匹配系统版本
     """
-    return '^OS\sVersion:\s*iPhone\sOS\s(.+)\s*$'
+    return r'^OS\sVersion:\s*iPhone\sOS\s(.+)\s*$'
 
 def _match_stack_item_re():
     """
     匹配崩溃栈信息
     """
-    return '^\d+\s+([a-zA-Z0-9\-_\+\.]+)\s+(0x[a-f0-9]+)\s(0x[a-f0-9]+)\s\+\s\d+\s*$'
+    return r'^\d+\s+([a-zA-Z0-9\-_\+\.]+)\s+(0x[a-f0-9]+)\s(0x[a-f0-9]+)\s\+\s\d+\s*$'
 
 def _sub_stack_item_symbol_re():
     """
     匹配崩溃栈中load_address以后的部分用于替换为符号部分
     """
-    return '0x[a-f0-9]+\s\+\s[\d]+'
+    return r'0x[a-f0-9]+\s\+\s[\d]+'
 
 def _match_image_item_re():
     """
     匹配image信息
     """
-    return '^\s*(0x[a-f0-9]+)\s\-\s+0x[a-f0-9]+\s+[^\+]?([a-zA-Z0-9\-_\+\.]+)\s+([a-z0-9]+)\s+<([a-f0-9]+)>\s([\S.]+)\s*$'
+    return r'^\s*(0x[a-f0-9]+)\s\-\s+0x[a-f0-9]+\s+[^\+]?([a-zA-Z0-9\-_\+\.]+)\s+([a-z0-9]+)\s+<([a-f0-9]+)>\s([\S.]+)\s*$'
 
 def _match_stack_header_re():
     """
     匹配崩溃栈信息头
     """
-    return '^Last\sException\sBacktrace:\s*$|^Thread\s0\sCrashed:\s*$|^Thread\s0:\s*$'
+    return r'^Last\sException\sBacktrace:\s*$|^Thread\s0\sCrashed:\s*$|^Thread\s0:\s*$'
 
 def _match_image_header_re():
     """
     匹配image信息头
     """
-    return '^Binary\sImages:\s*$'
+    return r'^Binary\sImages:\s*$'
 
+def _sub_proccess_file_path_re():
+    """
+    处理文件路径中shell不支持的空白字符和括号字符，添加转义
+    """
+    return r'([\\]?[\s\(\)])'
+
+def _os_symbol_file_path_prefix():
+    """
+    iOS系统相关符号文件路径前缀
+    """
+    return '~/Library/Developer/Xcode/iOS DeviceSupport'
 
 class _CrashInfo(object):
     """
@@ -238,9 +253,10 @@ def _write_log(path, lines):
         return False
     return True
 
-def _parse_content(lines):
+def _parse_content(lines, finder_func):
     """
     :param lines: content
+    :param finder_func: (name:String, identifier:String, version:String, codetype:String) -> (path)
     :return crash_list: list of CrashInfo
     """
     header_part_complete = False
@@ -259,6 +275,7 @@ def _parse_content(lines):
         elif image_info_complete is False:
             crash_obj, re_obj, image_info_complete = _parse_image_info(line, re_obj, crash_obj)
         else:
+            crash_obj.binary_images[crash_obj.product_name].symbol_file = finder_func(crash_obj.product_name, crash_obj.identifier, crash_obj.version, crash_obj.code_type)
             crash_list.append(crash_obj)
             header_part_complete = False
             stack_info_complete = False
@@ -338,16 +355,50 @@ def _parse_image_info(line, re_obj, crash_obj):
         image_item.name = match_obj.group(2)
         image_item.code_type = match_obj.group(3)
         image_item.uuid = match_obj.group(4)
-        image_item.symbol_file = match_obj.group(5)
-        crash_obj[image_item.load_address] = image_item
+        image_item.symbol_file = '{prefix}/{os_version}/{symbol_file}'\
+                  ''.format(prefix=_os_symbol_file_path_prefix(),
+                            os_version=crash_obj.os_version,
+                            symbol_file=match_obj.group(5))
+        crash_obj.binary_images[image_item.name] = image_item
     elif len(crash_obj.binary_images.items) > 0:
         complete = True
         re_obj = None
     return (crash_obj, re_obj, complete)
 
-def symbolicate_stack_items(crash_obj):
+def _symbolicate_stack_items(crash_obj):
     """
     :param crash_obj: CrashInfo object
     :return: crash_obj
     """
-    pass
+    re_obj = re.compile(_sub_proccess_file_path_re())
+    def proccess_path(match_obj):
+        matched_str = match_obj.group(1)
+        if len(matched_str) > 0 and matched_str[0] != '\\':
+            return '\\'+matched_str
+        return matched_str
+    for stack_item in crash_obj.function_stacks:
+        image_item = crash_obj.binary_images[stack_item.name]
+        symbol_file_path = re_obj.sub(proccess_path, image_item.symbol_file)
+        status, output = getstatusoutput('dwarfdump --uuid {symbol_file}'.format(symbol_file=symbol_file_path))
+        if status == 0 and output == image_item.uuid:
+            status, output = getstatusoutput('atos -arch {code_type} -o {symbol_file} -l {load_address} {invoke_address}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path, load_address=stack_item.load_address, invoke_address=stack_item.invoke_address))
+            if status == 0:
+                stack_item.invoke_symbol = output
+            else:
+                loge(output)
+        else:
+            loge('warnning! symbol file "{symbol_file}": uuid is not matched ')
+
+    return crash_obj
+
+def _compose_log(crash_list, lines):
+    """
+    :param crash_list: CrashInfo list
+    :param lines: origin log content
+    :return: new log content
+    """
+    re_obj = re.compile(_sub_stack_item_symbol_re())
+    for crash_obj in crash_list:
+        for stack_item in crash_obj.function_stacks:
+            lines[stack_item.line_num] = re_obj.sub(stack_item.invoke_symbol, lines[stack_item.line_num])
+    return lines
