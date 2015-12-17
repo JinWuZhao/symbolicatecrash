@@ -8,15 +8,16 @@ def symbolicate_crash(crash_log, finder_func, output_path=None):
     """
     符号化crash日志
     :param crash_log:crash日志文件路径
-    :param finder_func:查询app符号文件的处理函数，定义为:(name:string, identifier:string, version:string, codetype:string) -> (path)
+    :param finder_func:查询app符号文件的处理函数，定义为:(name:string, identifier:string, version:string, codetype:string, uuid:string) -> (path)
     :param output_path:符号化之后的crash文件路径，默认为none，表示直接输出到stdin
     :return 是否成功
     """
     status, lines = _read_log(crash_log)
-    if status is false:
+    if status is False:
         loge('cannot open log file "{log_file}"'.format(log_file=crash_log))
         return False
     crash_list = _parse_content(lines, finder_func)
+    crash_list = map(lambda obj: _symbolicate_stack_items(obj), crash_list)
     newlines = _compose_log(crash_list, lines)
     if output_path is None:
         print(newlines)
@@ -34,13 +35,13 @@ def _match_crash_header_re():
 
 def _match_product_name_re():
     """
-    匹配Process: xxx [xxx]等文字
+    匹配应用进程名称
     """
     return r'^Process:\s*([\S.]+)\s\[\d+\]\s*$'
 
 def _match_identifier_re():
     """
-    匹配Identifier: xxx.xxx.xxx等文字
+    匹配BundleId
     """
     return r'^Identifier:\s*([a-z0-9_\-\.]+)\s*$'
 
@@ -78,7 +79,7 @@ def _match_image_item_re():
     """
     匹配image信息
     """
-    return r'^\s*(0x[a-f0-9]+)\s\-\s+0x[a-f0-9]+\s+[^\+]?([a-zA-Z0-9\-_\+\.]+)\s+([a-z0-9]+)\s+<([a-f0-9]+)>\s([\S.]+)\s*$'
+    return r'^\s*(0x[a-f0-9]+)\s\-\s+0x[a-f0-9]+\s+([a-zA-Z0-9\-_\+\.]+)\s+([a-z0-9]+)\s+<([a-f0-9]+)>\s([\S.]+)\s*$'
 
 def _match_stack_header_re():
     """
@@ -98,128 +99,216 @@ def _sub_proccess_file_path_re():
     """
     return r'([\\]?[\s\(\)])'
 
+def _match_dwarfdump_uuid_re():
+    """
+    匹配dwarfdump输出的uuid部分
+    """
+    return r'^UUID:\s([A-F0-9]+)\-([A-F0-9]+)\-([A-F0-9]+)\-([A-F0-9]+)\-([A-F0-9]+)\s\([a-z0-9]+\)\s.+$'
+
 def _os_symbol_file_path_prefix():
     """
     iOS系统相关符号文件路径前缀
     """
     return '~/Library/Developer/Xcode/iOS DeviceSupport'
 
-class _CrashInfo(object):
+class CrashInfo(object):
     """
     crash数据结构
     """
+    def __init__(self):
+        self.__product_name = None
+        self.__identifier = None
+        self.__version = None
+        self.__code_type = None
+        self.__os_version = None
+        self.__function_stacks = None
+        self.__binary_images = None
+
     @property
     def product_name(self):
-        if self.product_name is None:
-            self.product_name = ''
-        return self.product_name
+        if self.__product_name is None:
+            self.__product_name = ''
+        return self.__product_name
+
+    @product_name.setter
+    def product_name(self, value):
+        self.__product_name = value
 
     @property
     def identifier(self):
-        if self.identifier is None:
-            self.identifier = ''
-        return self.identifier
+        if self.__identifier is None:
+            self.__identifier = ''
+        return self.__identifier
+
+    @identifier.setter
+    def identifier(self, value):
+        self.__identifier = value
 
     @property
     def version(self):
-        if self.version is None:
-            self.version = ''
-        return self.version
+        if self.__version is None:
+            self.__version = ''
+        return self.__version
+
+    @version.setter
+    def version(self, value):
+        self.__version = value
 
     @property
     def code_type(self):
-        if self.code_type is None:
-            self.code_type = ''
-        return self.code_type
+        if self.__code_type is None:
+            self.__code_type = ''
+        return self.__code_type
+
+    @code_type.setter
+    def code_type(self, value):
+        self.__code_type = value
 
     @property
     def os_version(self):
-        if self.os_version is None:
-            self.os_version = ''
-        return self.os_version
+        if self.__os_version is None:
+            self.__os_version = ''
+        return self.__os_version
+
+    @os_version.setter
+    def os_version(self, value):
+        self.__os_version = value
 
     @property
     def function_stacks(self):
-        if self.function_stacks is None:
-            self.function_stacks = list()
-        return self.function_stacks
+        if self.__function_stacks is None:
+            self.__function_stacks = list()
+        return self.__function_stacks
 
     @property
     def binary_images(self):
-        if self.binary_images is None:
-            self.binary_images = dict()
-        return self.binary_images
+        if self.__binary_images is None:
+            self.__binary_images = dict()
+        return self.__binary_images
 
 
-class _StackItemInfo(object):
+class StackItemInfo(object):
     """
     栈信息结构
     """
+    def __init__(self):
+        self.__line_num = None
+        self.__name = None
+        self.__invoke_address = None
+        self.__load_address = None
+        self.__invoke_symbol = None
+
     @property
     def line_num(self):
-        if self.line_num is None:
-            self.line_num = -1
-        return self.line_num
+        if self.__line_num is None:
+            self.__line_num = -1
+        return self.__line_num
+
+    @line_num.setter
+    def line_num(self, value):
+        self.__line_num = value
 
     @property
     def name(self):
-        if self.name is None:
-            self.name = ''
-        return self.name
+        if self.__name is None:
+            self.__name = ''
+        return self.__name
+
+    @name.setter
+    def name(self, value):
+        self.__name = value
 
     @property
     def invoke_address(self):
-        if self.invoke_address is None:
-            self.invoke_address = ''
-        return self.invoke_address
+        if self.__invoke_address is None:
+            self.__invoke_address = ''
+        return self.__invoke_address
+
+    @invoke_address.setter
+    def invoke_address(self, value):
+        self.__invoke_address = value
 
     @property
     def load_address(self):
-        if self.load_address is None:
-            self.load_address = ''
-        return self.load_address
+        if self.__load_address is None:
+            self.__load_address = ''
+        return self.__load_address
+
+    @load_address.setter
+    def load_address(self, value):
+        self.__load_address = value
 
     @property
     def invoke_symbol(self):
-        if self.invoke_symbol is None:
-            self.invoke_symbol = ''
-        return self.invoke_symbol
+        if self.__invoke_symbol is None:
+            self.__invoke_symbol = ''
+        return self.__invoke_symbol
+
+    @invoke_symbol.setter
+    def invoke_symbol(self, value):
+        self.__invoke_symbol = value
 
 
-class _ImageItemInfo(object):
+class ImageItemInfo(object):
     """
     Image信息结构
     """
+    def __init__(self):
+        self.__load_address = None
+        self.__name = None
+        self.__code_type = None
+        self.__uuid = None
+        self.__symbol_file = None
 
     @property
     def load_address(self):
-        if self.load_address is None:
-            self.load_address = ''
-        return self.load_address
+        if self.__load_address is None:
+            self.__load_address = ''
+        return self.__load_address
+
+    @load_address.setter
+    def load_address(self, value):
+        self.__load_address = value
 
     @property
     def name(self):
-        if self.name is None:
-            self.name = ''
-        return self.name
+        if self.__name is None:
+            self.__name = ''
+        return self.__name
+
+    @name.setter
+    def name(self, value):
+        self.__name = value
 
     @property
     def code_type(self):
-        if self.code_type is None:
-            self.code_type = ''
-        return self.code_type
+        if self.__code_type is None:
+            self.__code_type = ''
+        return self.__code_type
+
+    @code_type.setter
+    def code_type(self, value):
+        self.__code_type = value
 
     @property
     def uuid(self):
-        if self.uuid is None:
-            self.uuid = ''
-        return self.uuid
+        if self.__uuid is None:
+            self.__uuid = ''
+        return self.__uuid
+
+    @uuid.setter
+    def uuid(self, value):
+        self.__uuid = value
 
     @property
     def symbol_file(self):
-        if self.symbol_file is None:
-            self.symbol_file = ''
-        return self.symbol_file
+        if self.__symbol_file is None:
+            self.__symbol_file = ''
+        return self.__symbol_file
+
+    @symbol_file.setter
+    def symbol_file(self, value):
+        self.__symbol_file = value
 
 
 def _read_log(path):
@@ -256,7 +345,7 @@ def _write_log(path, lines):
 def _parse_content(lines, finder_func):
     """
     :param lines: content
-    :param finder_func: (name:String, identifier:String, version:String, codetype:String) -> (path)
+    :param finder_func: (name:String, identifier:String, version:String, codetype:String, uuid:String) -> (path)
     :return crash_list: list of CrashInfo
     """
     header_part_complete = False
@@ -271,11 +360,11 @@ def _parse_content(lines, finder_func):
         if header_part_complete is False:
             crash_obj, header_part_complete = _parse_crash_info(line, crash_obj)
         elif stack_info_complete is False:
-            crash_obj, re_obj, stack_info_complete = _parse_stack_info(line, re_obj, crash_obj, crash_list.index(line))
+            crash_obj, re_obj, stack_info_complete = _parse_stack_info(line, re_obj, crash_obj, lines.index(line))
         elif image_info_complete is False:
             crash_obj, re_obj, image_info_complete = _parse_image_info(line, re_obj, crash_obj)
         else:
-            crash_obj.binary_images[crash_obj.product_name].symbol_file = finder_func(crash_obj.product_name, crash_obj.identifier, crash_obj.version, crash_obj.code_type)
+            crash_obj.binary_images[crash_obj.product_name].symbol_file = finder_func(crash_obj.product_name, crash_obj.identifier, crash_obj.version, crash_obj.code_type, crash_obj.binary_images[crash_obj.product_name])
             crash_list.append(crash_obj)
             header_part_complete = False
             stack_info_complete = False
@@ -291,7 +380,7 @@ def _parse_crash_info(line, crash_obj):
     complete = False
     if crash_obj is None:
         if re.match(_match_crash_header_re(), line) is not None:
-            crash_obj = _CrashInfo()
+            crash_obj = CrashInfo()
     elif len(crash_obj.product_name) == 0 :
         match_obj = re.match(_match_product_name_re(), line)
         if match_obj is not None:
@@ -327,10 +416,10 @@ def _parse_stack_info(line, re_obj, crash_obj, line_num):
     complete = False
     match_obj = re_obj.match(line)
     if match_obj is not None:
-        stack_item =  _StackItemInfo()
+        stack_item =  StackItemInfo()
         stack_item.name = match_obj.group(1)
-        stack_item.invoke_address = match_obj(2)
-        stack_item.load_address = match_obj(3)
+        stack_item.invoke_address = match_obj.group(2)
+        stack_item.load_address = match_obj.group(3)
         stack_item.line_num = line_num
         crash_obj.function_stacks.append(stack_item)
     elif re.match(_match_image_header_re(), line) is not None:
@@ -350,17 +439,17 @@ def _parse_image_info(line, re_obj, crash_obj):
     complete = False
     match_obj = re_obj.match(line)
     if match_obj is not None:
-        image_item = _ImageItemInfo()
+        image_item = ImageItemInfo()
         image_item.load_address = match_obj.group(1)
-        image_item.name = match_obj.group(2)
+        image_item.name = match_obj.group(2).lstrip('+')
         image_item.code_type = match_obj.group(3)
-        image_item.uuid = match_obj.group(4)
-        image_item.symbol_file = '{prefix}/{os_version}/{symbol_file}'\
+        image_item.uuid = match_obj.group(4).upper()
+        image_item.symbol_file = '{prefix}/{os_version}/Symbols/{symbol_file}'\
                   ''.format(prefix=_os_symbol_file_path_prefix(),
                             os_version=crash_obj.os_version,
-                            symbol_file=match_obj.group(5))
+                            symbol_file=match_obj.group(5).lstrip('/'))
         crash_obj.binary_images[image_item.name] = image_item
-    elif len(crash_obj.binary_images.items) > 0:
+    elif len(crash_obj.binary_images.items()) > 0:
         complete = True
         re_obj = None
     return (crash_obj, re_obj, complete)
@@ -371,23 +460,35 @@ def _symbolicate_stack_items(crash_obj):
     :return: crash_obj
     """
     re_obj = re.compile(_sub_proccess_file_path_re())
+    uuid_re_obj = re.compile(_match_dwarfdump_uuid_re())
     def proccess_path(match_obj):
         matched_str = match_obj.group(1)
         if len(matched_str) > 0 and matched_str[0] != '\\':
             return '\\'+matched_str
         return matched_str
     for stack_item in crash_obj.function_stacks:
-        image_item = crash_obj.binary_images[stack_item.name]
+        image_item = crash_obj.binary_images.get(stack_item.name)
+        if image_item is None:
+            continue
         symbol_file_path = re_obj.sub(proccess_path, image_item.symbol_file)
-        status, output = getstatusoutput('dwarfdump --uuid {symbol_file}'.format(symbol_file=symbol_file_path))
-        if status == 0 and output == image_item.uuid:
+        logd('dwarfdump --uuid --arch {code_type} {symbol_file}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path))
+        status, output = getstatusoutput('dwarfdump --uuid --arch {code_type} {symbol_file}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path))
+        output_uuid = output
+        uuid_match_obj = uuid_re_obj.match(output)
+        if uuid_match_obj is not None:
+            output_uuid = ''.join(uuid_match_obj.groups())
+        else:
+            loge('cannot parse the output of dwarfdump')
+        if status == 0 and output_uuid == image_item.uuid:
+            logd('atos -arch {code_type} -o {symbol_file} -l {load_address} {invoke_address}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path, load_address=stack_item.load_address, invoke_address=stack_item.invoke_address))
             status, output = getstatusoutput('atos -arch {code_type} -o {symbol_file} -l {load_address} {invoke_address}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path, load_address=stack_item.load_address, invoke_address=stack_item.invoke_address))
             if status == 0:
                 stack_item.invoke_symbol = output
             else:
                 loge(output)
         else:
-            loge('warnning! symbol file "{symbol_file}": uuid is not matched ')
+            loge('warnning! symbol file "{symbol_file}": uuid is not matched {uuid}'.format(symbol_file=symbol_file_path, uuid=image_item.uuid))
+            loge(output)
 
     return crash_obj
 
