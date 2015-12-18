@@ -1,6 +1,7 @@
 from logutils import *
 import re
 from subprocess import getstatusoutput
+import os
 
 __author__ = 'jinzhao'
 
@@ -10,6 +11,7 @@ def symbolicate_crash(crash_log, finder_func, output_path=None, verbose_mode=Fal
     :param crash_log:crash日志文件路径
     :param finder_func:查询app符号文件的处理函数，定义为:(name:string, identifier:string, version:string, codetype:string, uuid:string) -> (path)
     :param output_path:符号化之后的crash文件路径，默认为none，表示直接输出到stdin
+    :param verbos_mode:是否开启调试模式
     :return 是否成功
     """
     if verbose_mode is False:
