@@ -60,7 +60,7 @@ def _main(args):
             print('dsym file: {dsym_file}'.format(dsym_file=dsym_file))
         return dsym_file
 
-    if symbolicate.symbolicate_crash(crash_log, finder_func, output_file) is False:
+    if symbolicate.symbolicate_crash(crash_log, finder_func, output_file, verbose_mode) is False:
         print('Error! task failed.')
         return 2
     return 0

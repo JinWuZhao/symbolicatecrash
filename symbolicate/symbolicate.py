@@ -4,7 +4,7 @@ from subprocess import getstatusoutput
 
 __author__ = 'jinzhao'
 
-def symbolicate_crash(crash_log, finder_func, output_path=None):
+def symbolicate_crash(crash_log, finder_func, output_path=None, verbose_mode=False):
     """
     符号化crash日志
     :param crash_log:crash日志文件路径
@@ -12,6 +12,13 @@ def symbolicate_crash(crash_log, finder_func, output_path=None):
     :param output_path:符号化之后的crash文件路径，默认为none，表示直接输出到stdin
     :return 是否成功
     """
+    if verbose_mode is False:
+        global loge
+        global logd
+        global logi
+        loge = lambda x : x
+        logd = lambda x : x
+        logi = lambda x : x
     status, lines = _read_log(crash_log)
     if status is False:
         loge('cannot open log file "{log_file}"'.format(log_file=crash_log))
@@ -20,7 +27,8 @@ def symbolicate_crash(crash_log, finder_func, output_path=None):
     crash_list = map(lambda obj: _symbolicate_stack_items(obj), crash_list)
     newlines = _compose_log(crash_list, lines)
     if output_path is None:
-        print(newlines)
+        for line in newlines:
+            print(line.rstrip('\n'))
     else:
         if _write_log(output_path, newlines) is False:
             loge('cannot write into file "{log_file}"'.format(log_file=output_path))
@@ -364,7 +372,7 @@ def _parse_content(lines, finder_func):
         elif image_info_complete is False:
             crash_obj, re_obj, image_info_complete = _parse_image_info(line, re_obj, crash_obj)
         else:
-            crash_obj.binary_images[crash_obj.product_name].symbol_file = finder_func(crash_obj.product_name, crash_obj.identifier, crash_obj.version, crash_obj.code_type, crash_obj.binary_images[crash_obj.product_name])
+            crash_obj.binary_images[crash_obj.product_name].symbol_file = finder_func(crash_obj.product_name, crash_obj.identifier, crash_obj.version, crash_obj.code_type, crash_obj.binary_images[crash_obj.product_name].uuid)
             crash_list.append(crash_obj)
             header_part_complete = False
             stack_info_complete = False
