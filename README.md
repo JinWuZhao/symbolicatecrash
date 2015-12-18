@@ -23,3 +23,26 @@ version: 1.0.0
 在Mac上打开Xcode程序，将iOS设备连接到Mac上，在Xcode左上角target后面选择连接的设备，会看到Xcode上方中间的状态栏上会有Symbolicating的提示，当进度完成时符号文件就已经取到了。注意这个过程只能取得连接设备上的对应cpu架构及iOS系统版本的符号文件，如连接的设备为armv7s iOS8.1，则只能取到iOS8.1版本在armv7s架构上的符号文件，如果cpu架构为arm64则取到的符号文件中会包含arm64和armv7s两者。当然也可以去其他的Mac上拷贝符号文件，这样更容易。
 ##### 3.遇到其它问题？
 请马上提交issue，告诉情况或者提交改进建议。
+
+### License
+The MIT License (MIT)
+
+Copyright (c) Dec-18-2015 jinzhao
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
