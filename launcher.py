@@ -22,9 +22,12 @@ def _parse_params():
     created at 12-17-2015.
     """
     parser = argparse.ArgumentParser(prog='Symbolicate crash log written by Python.', usage=cmd_usage, description=cmd_description)
-    parser.add_argument('crash_log', nargs='?', action='store', type=str, help='crash log file, generally named xxx.crash')
-    parser.add_argument('dsym_file', nargs='?', action='store', type=str, help='App symbolic file, generally named xxx.app.dSYM')
-    group_param = parser.add_argument_group()
+    group_version = parser.add_mutually_exclusive_group()
+    group_version.add_argument('--version', action='store_true', dest='show_version', help='show version info')
+    group_run = parser.add_mutually_exclusive_group()
+    group_run.add_argument('crash_log', nargs='?', action='store', type=str, help='crash log file, generally named xxx.crash')
+    group_run.add_argument('dsym_file', nargs='?', action='store', type=str, help='App symbolic file, generally named xxx.app.dSYM')
+    group_param = group_run.add_argument_group()
     group_param.add_argument('-v', '--verbose', action='store_true', dest='verbose_mode', help='run in verbose mode, with some debug infomation outputs')
     group_param.add_argument('-o', '--output', action='store', type=str, dest='output_file', help='indicate output file of symolicated crash log')
     return parser.parse_args()
@@ -34,6 +37,14 @@ def _main(args):
     启动symbolicate程序
     :param args:解析后的命令行参数
     """
+    if args.show_version is True:
+        print('version: '+symbolicate.version())
+        return 0
+
+    if args.crash_log is None:
+        print('Error! You must indicate a crash log file.')
+        return 2
+    crash_log = args.crash_log
     if args.dsym_file is None:
         print('Error! You must indicate a dSYM file.')
         return 2
@@ -44,10 +55,6 @@ def _main(args):
         return 2
     app_name = match_obj.group(1)
     dsym_file = args.dsym_file+'/Contents/Resources/DWARF/'+app_name
-    if args.crash_log is None:
-        print('Error! You must indicate a crash log file.')
-        return 2
-    crash_log = args.crash_log
     verbose_mode = args.verbose_mode
     output_file = args.output_file
 

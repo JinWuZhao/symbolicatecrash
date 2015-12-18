@@ -5,6 +5,9 @@ import os
 
 __author__ = 'jinzhao'
 
+def version():
+    return '1.0.0'
+
 def symbolicate_crash(crash_log, finder_func, output_path=None, verbose_mode=False):
     """
     符号化crash日志
