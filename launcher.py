@@ -22,9 +22,9 @@ def _parse_params():
     created at 12-17-2015.
     """
     parser = argparse.ArgumentParser(prog='Symbolicate crash log written by Python.', usage=cmd_usage, description=cmd_description)
-    group_version = parser.add_mutually_exclusive_group()
+    group_version = parser.add_argument_group()
     group_version.add_argument('--version', action='store_true', dest='show_version', help='show version info')
-    group_run = parser.add_mutually_exclusive_group()
+    group_run = parser.add_argument_group()
     group_run.add_argument('crash_log', nargs='?', action='store', type=str, help='crash log file, generally named xxx.crash')
     group_run.add_argument('dsym_file', nargs='?', action='store', type=str, help='App symbolic file, generally named xxx.app.dSYM')
     group_param = group_run.add_argument_group()
@@ -53,7 +53,7 @@ def _main(args):
     if match_obj is None:
         print('Error! The dSYM file is not valid.')
         return 2
-    app_name = match_obj.group(1)
+    app_name = match_obj.group(1) if match_obj.group(1) is not None else match_obj.group(2)
     dsym_file = args.dsym_file+'/Contents/Resources/DWARF/'+app_name
     verbose_mode = args.verbose_mode
     output_file = args.output_file
