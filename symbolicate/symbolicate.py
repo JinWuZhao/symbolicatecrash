@@ -377,7 +377,7 @@ def _parse_content(lines, finder_func):
         elif image_info_complete is False:
             crash_obj, re_obj, image_info_complete = _parse_image_info(line, re_obj, crash_obj)
         else:
-            crash_obj.binary_images[crash_obj.product_name].symbol_file = finder_func(crash_obj.product_name, crash_obj.identifier, crash_obj.version, crash_obj.code_type, crash_obj.binary_images[crash_obj.product_name].uuid)
+            crash_obj.binary_images[crash_obj.product_name].symbol_file = finder_func(crash_obj.product_name, crash_obj.identifier, crash_obj.version, crash_obj.binary_images[crash_obj.product_name].code_type, crash_obj.binary_images[crash_obj.product_name].uuid)
             crash_list.append(crash_obj)
             header_part_complete = False
             stack_info_complete = False
