@@ -369,7 +369,8 @@ def _parse_content(lines, finder_func):
     re_obj = None
     crash_obj = None
 
-    for line in lines:
+    for index, line in enumerate(lines):
+        #logd('line %d: %s' % (index, line))
         if header_part_complete is False:
             crash_obj, header_part_complete = _parse_crash_info(line, crash_obj)
         elif stack_info_complete is False:
