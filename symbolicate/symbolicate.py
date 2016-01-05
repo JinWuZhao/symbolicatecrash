@@ -29,6 +29,7 @@ def symbolicate_crash(crash_log, finder_func, output_path=None, verbose_mode=Fal
         loge('cannot open log file "{log_file}"'.format(log_file=crash_log))
         return False
     crash_list = _parse_content(lines, finder_func)
+    logd('there is %d crash obj' % len(crash_list))
     crash_list = map(lambda obj: _symbolicate_stack_items(obj), crash_list)
     newlines = _compose_log(crash_list, lines)
     if output_path is None:
@@ -373,16 +374,21 @@ def _parse_content(lines, finder_func):
         #logd('line %d: %s' % (index, line))
         if header_part_complete is False:
             crash_obj, header_part_complete = _parse_crash_info(line, crash_obj)
+            #logd('parse crash info complete: ' + str(header_part_complete))
         elif stack_info_complete is False:
-            crash_obj, re_obj, stack_info_complete = _parse_stack_info(line, re_obj, crash_obj, lines.index(line))
+            crash_obj, re_obj, stack_info_complete = _parse_stack_info(line, re_obj, crash_obj, index)
+            #logd('parse stack info complete: ' + str(stack_info_complete))
         elif image_info_complete is False:
             crash_obj, re_obj, image_info_complete = _parse_image_info(line, re_obj, crash_obj)
+            #logd('parse image info complete: ' + str(image_info_complete))
         else:
             crash_obj.binary_images[crash_obj.product_name].symbol_file = finder_func(crash_obj.product_name, crash_obj.identifier, crash_obj.version, crash_obj.binary_images[crash_obj.product_name].code_type, crash_obj.binary_images[crash_obj.product_name].uuid)
             crash_list.append(crash_obj)
+            #logd('store crash obj')
             header_part_complete = False
             stack_info_complete = False
             image_info_complete = False
+            crash_obj = None
     return crash_list
 
 def _parse_crash_info(line, crash_obj):
