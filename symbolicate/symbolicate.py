@@ -41,6 +41,24 @@ def symbolicate_crash(crash_log, finder_func, output_path=None, verbose_mode=Fal
             return False
     return True
 
+def query_uuid(code_type, symbol_file):
+    """
+    符号文件uuid查询
+    :param codetype: cpu架构版本
+    :param symbol_file: 符号文件路径
+    :return uuid
+    """
+    uuid_re_obj = re.compile(_match_dwarfdump_uuid_re())
+    logd('dwarfdump --uuid --arch {code_type} {symbol_file}'.format(code_type=code_type, symbol_file=symbol_file))
+    status, output = getstatusoutput('dwarfdump --uuid --arch {code_type} {symbol_file}'.format(code_type=code_type, symbol_file=symbol_file))
+    output_uuid = ''
+    uuid_match_obj = uuid_re_obj.match(output)
+    if uuid_match_obj is not None:
+        output_uuid = ''.join(uuid_match_obj.groups())
+    else:
+        loge('cannot parse the output of dwarfdump')
+    return output_uuid
+
 def _match_crash_header_re():
     """
     匹配Incident Identifier: xxxxxx-xxxx-xxxx-xxxx-xxxxxx等文字
@@ -338,7 +356,7 @@ def _read_log(path):
             lines = file.readlines()
     except Exception as e:
         loge(e)
-        return (False, list(), list())
+        return (False, list())
     return (True, lines)
 
 def _write_log(path, lines):
