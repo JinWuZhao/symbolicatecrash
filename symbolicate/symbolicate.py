@@ -75,7 +75,7 @@ def _match_identifier_re():
     """
     匹配BundleId
     """
-    return r'^Identifier:\s*([a-z0-9_\-\.]+)\s*$'
+    return r'^Identifier:\s*([a-zA-Z0-9_\-\.]+)\s*$'
 
 def _match_version_re():
     """
