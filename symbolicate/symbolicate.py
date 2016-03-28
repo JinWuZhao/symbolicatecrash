@@ -111,7 +111,7 @@ def _match_image_item_re():
     """
     匹配image信息
     """
-    return r'^\s*(0x[a-f0-9]+)\s\-\s+0x[a-f0-9]+\s+([a-zA-Z0-9\-_\+\.]+)\s+([a-z0-9]+)\s+<([a-f0-9]+)>\s([\S.]+)\s*$'
+    return r'^\s*(0x[a-f0-9]+)\s\-\s+0x[a-f0-9]+\s+([a-zA-Z0-9\-_\+\.]+)\s+([a-z0-9]+)\s+(<([a-f0-9]+)>\s)?([\S.]+)\s*$'
 
 def _match_stack_header_re():
     """
@@ -481,11 +481,13 @@ def _parse_image_info(line, re_obj, crash_obj):
         image_item.load_address = match_obj.group(1)
         image_item.name = match_obj.group(2).lstrip('+')
         image_item.code_type = match_obj.group(3)
-        image_item.uuid = match_obj.group(4).upper()
+        image_item.uuid = match_obj.group(5)
+        if image_item.uuid is not None:
+            image_item.uuid = image_item.uuid.upper()
         image_item.symbol_file = '{prefix}/{os_version}/Symbols/{symbol_file}'\
                   ''.format(prefix=_os_symbol_file_path_prefix(),
                             os_version=crash_obj.os_version,
-                            symbol_file=match_obj.group(5).lstrip('/'))
+                            symbol_file=match_obj.group(6).lstrip('/'))
         crash_obj.binary_images[image_item.name] = image_item
     elif len(crash_obj.binary_images.items()) > 0:
         complete = True
@@ -504,29 +506,36 @@ def _symbolicate_stack_items(crash_obj):
         if len(matched_str) > 0 and matched_str[0] != '\\':
             return '\\'+matched_str
         return matched_str
+
+    def run_atos(stack_item, image_item, symbol_file_path):
+        logd('atos -arch {code_type} -o {symbol_file} -l {load_address} {invoke_address}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path, load_address=stack_item.load_address, invoke_address=stack_item.invoke_address))
+        status, output = getstatusoutput('atos -arch {code_type} -o {symbol_file} -l {load_address} {invoke_address}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path, load_address=stack_item.load_address, invoke_address=stack_item.invoke_address))
+        if status == 0:
+            stack_item.invoke_symbol = output
+        else:
+            loge(output)
+
     for stack_item in crash_obj.function_stacks:
         image_item = crash_obj.binary_images.get(stack_item.name)
         if image_item is None:
             continue
         symbol_file_path = re_obj.sub(proccess_path, image_item.symbol_file)
-        logd('dwarfdump --uuid --arch {code_type} {symbol_file}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path))
-        status, output = getstatusoutput('dwarfdump --uuid --arch {code_type} {symbol_file}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path))
-        output_uuid = output
-        uuid_match_obj = uuid_re_obj.match(output)
-        if uuid_match_obj is not None:
-            output_uuid = ''.join(uuid_match_obj.groups())
-        else:
-            loge('cannot parse the output of dwarfdump')
-        if status == 0 and output_uuid == image_item.uuid:
-            logd('atos -arch {code_type} -o {symbol_file} -l {load_address} {invoke_address}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path, load_address=stack_item.load_address, invoke_address=stack_item.invoke_address))
-            status, output = getstatusoutput('atos -arch {code_type} -o {symbol_file} -l {load_address} {invoke_address}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path, load_address=stack_item.load_address, invoke_address=stack_item.invoke_address))
-            if status == 0:
-                stack_item.invoke_symbol = output
+        if image_item.uuid is not None and len(image_item.uuid) > 0:
+            logd('dwarfdump --uuid --arch {code_type} {symbol_file}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path))
+            status, output = getstatusoutput('dwarfdump --uuid --arch {code_type} {symbol_file}'.format(code_type=image_item.code_type, symbol_file=symbol_file_path))
+            output_uuid = output
+            uuid_match_obj = uuid_re_obj.match(output)
+            if uuid_match_obj is not None:
+                output_uuid = ''.join(uuid_match_obj.groups())
             else:
+                loge('cannot parse the output of dwarfdump')
+            if status == 0 and output_uuid == image_item.uuid:
+                run_atos(stack_item, image_item, symbol_file_path)
+            else:
+                loge('warnning! symbol file "{symbol_file}": uuid is not matched {uuid}'.format(symbol_file=symbol_file_path, uuid=image_item.uuid))
                 loge(output)
         else:
-            loge('warnning! symbol file "{symbol_file}": uuid is not matched {uuid}'.format(symbol_file=symbol_file_path, uuid=image_item.uuid))
-            loge(output)
+            run_atos(stack_item, image_item, symbol_file_path)
 
     return crash_obj
 
