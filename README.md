@@ -12,6 +12,9 @@ version: 1.0.0
 * 2.不支持模拟器设备。
 * 3.需手动导入符号文件。
 
+### 依赖：
+atos，dwarfdump，xcode，python3
+
 ### 使用方法：
 * 1.请检查"~/Library/Developer/Xcode/iOS DeviceSupport/"目录下是否存在各系统版本的符号文件（如："9.1 (13B143)"等），如果不存在，那么您需要去收集一些了（方法稍后描述），否则将无法符号化iOS系统库的调用栈。
 * 2.检查您的应用程序的符号文件路径并记录下来, 通常在编译导出后的archive文件中，名为"/path/xxx.app.dSYM"。
