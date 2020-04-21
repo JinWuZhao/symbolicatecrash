@@ -93,7 +93,7 @@ def _match_os_version_re():
     """
     匹配系统版本
     """
-    return r'^OS\sVersion:\s*iPhone\sOS\s(.+)\s*$'
+    return r'^OS\sVersion:\s*i[^0-9]+(.+)\s*$'
 
 def _match_stack_item_re():
     """
